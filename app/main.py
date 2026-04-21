@@ -83,7 +83,7 @@ async def log_requests(request: Request, call_next):
 async def read_root():
     logger.info("root_endpoint_called", extra=log_context())
     return {
-        "message": "Hello Aravind from FastAPI",
+        "message": "Hello Test from FastAPI",
         "service_name": service_name,
         "service_version": service_version,
         "environment": environment,
