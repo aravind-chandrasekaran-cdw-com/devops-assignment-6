@@ -13,9 +13,12 @@ from app.logging_config import configure_logging
 
 configure_logging()
 service_name = os.getenv("SERVICE_NAME", "sample-fastapi-app")
+service_name1 = os.getenv("SERVICE_NAME", "sample-fastapi-app-1")
 service_version = os.getenv("SERVICE_VERSION", "1.0.0")
 environment = os.getenv("ENVIRONMENT", "local")
 logger = logging.getLogger(service_name)
+
+logger1 = logging.getLogger(service_name1)
 
 
 def log_context(**extra_fields):
@@ -100,7 +103,7 @@ async def health_check():
 
 @app.get("/items/{item_id}")
 async def read_item(item_id: int):
-    logger.info("item_endpoint_called", extra=log_context(item_id=item_id))
+    logger1.info("item_endpoint_called", extra=log_context(item_id=item_id))
     return {
         "item_id": item_id,
         "name": f"item-{item_id}",

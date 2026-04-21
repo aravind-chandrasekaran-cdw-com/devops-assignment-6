@@ -4,10 +4,40 @@ import os
 import sys
 from datetime import datetime, timezone
 
+try:
+    import logging_loki
+except ImportError:  # pragma: no cover - optional dependency for remote logging
+    logging_loki = None
+
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "sample-fastapi-app")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "1.0.0")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "local")
+LOKI_URL = os.getenv("LOKI_URL", "http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push")
+LOKI_USERNAME = os.getenv("LOKI_USERNAME")
+LOKI_PASSWORD = os.getenv("LOKI_PASSWORD")
+
+
+def _build_loki_handler(log_level: str) -> logging.Handler | None:
+    if not LOKI_URL or logging_loki is None:
+        return None
+
+    auth = None
+    if LOKI_USERNAME and LOKI_PASSWORD:
+        auth = (LOKI_USERNAME, LOKI_PASSWORD)
+
+    handler = logging_loki.LokiHandler(
+        url=LOKI_URL,
+        tags={
+            "service": SERVICE_NAME,
+            "environment": ENVIRONMENT,
+            "version": SERVICE_VERSION,
+        },
+        auth=auth,
+        version="1",
+    )
+    handler.setLevel(log_level)
+    return handler
 
 
 class JsonFormatter(logging.Formatter):
@@ -60,6 +90,11 @@ def configure_logging() -> None:
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
+
+    loki_handler = _build_loki_handler(log_level)
+    if loki_handler is not None:
+        root_logger.addHandler(loki_handler)
+
     root_logger.setLevel(log_level)
 
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
