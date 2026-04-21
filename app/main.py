@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.logging_config import configure_logging, service_context
+from app.logging_config import configure_logging, register_service_logger, service_context
 
 
 configure_logging()
@@ -18,6 +18,7 @@ service_version = os.getenv("SERVICE_VERSION", "1.0.0")
 environment = os.getenv("ENVIRONMENT", "local")
 logger = logging.getLogger(service_name)
 
+register_service_logger(items_service_name, items_service_name)
 items_logger = logging.getLogger(items_service_name)
 
 
