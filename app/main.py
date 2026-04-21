@@ -8,26 +8,21 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.logging_config import configure_logging
+from app.logging_config import configure_logging, service_context
 
 
 configure_logging()
 service_name = os.getenv("SERVICE_NAME", "sample-fastapi-app")
-service_name1 = os.getenv("SERVICE_NAME", "sample-fastapi-app-1")
+items_service_name = os.getenv("ITEMS_SERVICE_NAME", "sample-fastapi-app-1")
 service_version = os.getenv("SERVICE_VERSION", "1.0.0")
 environment = os.getenv("ENVIRONMENT", "local")
 logger = logging.getLogger(service_name)
 
-logger1 = logging.getLogger(service_name1)
+items_logger = logging.getLogger(items_service_name)
 
 
 def log_context(**extra_fields):
-    return {
-        "service_name": service_name,
-        "service_version": service_version,
-        "environment": environment,
-        **extra_fields,
-    }
+    return service_context(service_name, **extra_fields)
 
 
 @asynccontextmanager
@@ -103,7 +98,10 @@ async def health_check():
 
 @app.get("/items/{item_id}")
 async def read_item(item_id: int):
-    logger1.info("item_endpoint_called", extra=log_context(item_id=item_id))
+    items_logger.info(
+        "item_endpoint_called",
+        extra=service_context(items_service_name, item_id=item_id),
+    )
     return {
         "item_id": item_id,
         "name": f"item-{item_id}",

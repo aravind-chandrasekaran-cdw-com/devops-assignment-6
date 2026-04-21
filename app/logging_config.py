@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timezone
+from typing import Any
 
 try:
     import logging_loki
@@ -18,6 +19,18 @@ LOKI_USERNAME = os.getenv("LOKI_USERNAME")
 LOKI_PASSWORD = os.getenv("LOKI_PASSWORD")
 
 
+class _DynamicServiceLokiHandler(logging_loki.LokiHandler):
+    def emit(self, record: logging.LogRecord) -> None:
+        original_tags = dict(getattr(self, "tags", {}))
+        service_tag = getattr(record, "service_name", None) or record.name
+        self.tags["service"] = service_tag
+        try:
+            super().emit(record)
+        finally:
+            self.tags.clear()
+            self.tags.update(original_tags)
+
+
 def _build_loki_handler(log_level: str) -> logging.Handler | None:
     if not LOKI_URL or logging_loki is None:
         return None
@@ -26,7 +39,7 @@ def _build_loki_handler(log_level: str) -> logging.Handler | None:
     if LOKI_USERNAME and LOKI_PASSWORD:
         auth = (LOKI_USERNAME, LOKI_PASSWORD)
 
-    handler = logging_loki.LokiHandler(
+    handler = _DynamicServiceLokiHandler(
         url=LOKI_URL,
         tags={
             "service": SERVICE_NAME,
@@ -38,6 +51,15 @@ def _build_loki_handler(log_level: str) -> logging.Handler | None:
     )
     handler.setLevel(log_level)
     return handler
+
+
+def service_context(service_name: str, **extra_fields: Any) -> dict[str, Any]:
+    return {
+        "service_name": service_name,
+        "service_version": SERVICE_VERSION,
+        "environment": ENVIRONMENT,
+        **extra_fields,
+    }
 
 
 class JsonFormatter(logging.Formatter):
