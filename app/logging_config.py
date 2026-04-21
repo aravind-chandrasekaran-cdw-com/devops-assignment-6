@@ -19,19 +19,7 @@ LOKI_USERNAME = os.getenv("LOKI_USERNAME")
 LOKI_PASSWORD = os.getenv("LOKI_PASSWORD")
 
 
-class _DynamicServiceLokiHandler(logging_loki.LokiHandler):
-    def emit(self, record: logging.LogRecord) -> None:
-        original_tags = dict(getattr(self, "tags", {}))
-        service_tag = getattr(record, "service_name", None) or record.name
-        self.tags["service"] = service_tag
-        try:
-            super().emit(record)
-        finally:
-            self.tags.clear()
-            self.tags.update(original_tags)
-
-
-def _build_loki_handler(log_level: str) -> logging.Handler | None:
+def _build_loki_handler(service_name: str, log_level: str) -> logging.Handler | None:
     if not LOKI_URL or logging_loki is None:
         return None
 
@@ -39,10 +27,10 @@ def _build_loki_handler(log_level: str) -> logging.Handler | None:
     if LOKI_USERNAME and LOKI_PASSWORD:
         auth = (LOKI_USERNAME, LOKI_PASSWORD)
 
-    handler = _DynamicServiceLokiHandler(
+    handler = logging_loki.LokiHandler(
         url=LOKI_URL,
         tags={
-            "service": SERVICE_NAME,
+            "service": service_name,
             "environment": ENVIRONMENT,
             "version": SERVICE_VERSION,
         },
@@ -51,6 +39,24 @@ def _build_loki_handler(log_level: str) -> logging.Handler | None:
     )
     handler.setLevel(log_level)
     return handler
+
+
+def register_service_logger(logger_name: str, service_name: str) -> None:
+    """Attach a dedicated Loki handler (and console handler) to a named logger
+    so its logs appear under a separate service label in Grafana/Loki."""
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    svc_logger = logging.getLogger(logger_name)
+    svc_logger.handlers.clear()
+    svc_logger.propagate = False
+    svc_logger.setLevel(log_level)
+
+    console = logging.StreamHandler(sys.stdout)
+    console.setFormatter(JsonFormatter())
+    svc_logger.addHandler(console)
+
+    loki_handler = _build_loki_handler(service_name, log_level)
+    if loki_handler is not None:
+        svc_logger.addHandler(loki_handler)
 
 
 def service_context(service_name: str, **extra_fields: Any) -> dict[str, Any]:
@@ -113,7 +119,7 @@ def configure_logging() -> None:
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
 
-    loki_handler = _build_loki_handler(log_level)
+    loki_handler = _build_loki_handler(SERVICE_NAME, log_level)
     if loki_handler is not None:
         root_logger.addHandler(loki_handler)
 
